@@ -34,6 +34,7 @@
             background: #0f3460;
             margin-bottom: 16px;
             font-size: 0.9rem;
+            min-height: 44px;
         }
         .btn {
             display: block;
@@ -48,16 +49,33 @@
             transition: opacity 0.2s;
         }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-record { background: #e94560; color: white; }
-        .btn-record.recording { background: #ff0000; animation: pulse 1s infinite; }
-        .btn-stop { background: #533483; color: white; }
-        .btn-send { background: #0f3460; color: white; }
+        .btn-talk { background: #e94560; color: white; font-size: 1.1rem; }
+        .btn-talk.recording { background: #ff0000; animation: pulse 1s infinite; }
+        .btn-send { background: #533483; color: white; }
+        .btn-again { background: #0f3460; color: white; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
         }
-        #timer { text-align: center; font-size: 1.5rem; margin: 10px 0; font-variant-numeric: tabular-nums; }
-        #response-audio { width: 100%; margin-top: 10px; }
+        .transcript {
+            background: #0f3460;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            min-height: 40px;
+            color: #ccc;
+            word-wrap: break-word;
+        }
+        .response {
+            background: #1a1a40;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #7fdbca;
+            min-height: 40px;
+            word-wrap: break-word;
+        }
         .examples { margin-top: 10px; }
         .examples p { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
         .examples code {
@@ -73,111 +91,132 @@
 </head>
 <body>
     <h1>ChatIA</h1>
-    <p class="subtitle">Teste de Audio - API de Orcamento Financeiro</p>
+    <p class="subtitle">Teste por voz - API de Orcamento Financeiro</p>
 
     <div class="card">
-        <h2>Gravar Audio</h2>
-        <div id="status">Pronto para gravar</div>
-        <div id="timer">00:00</div>
-        <button class="btn btn-record" id="btnRecord" onclick="startRecording()">Gravar</button>
-        <button class="btn btn-stop" id="btnStop" onclick="stopRecording()" disabled>Parar</button>
-        <button class="btn btn-send" id="btnSend" onclick="sendAudio()" disabled>Enviar para IA</button>
+        <h2>Fale seu comando</h2>
+        <div id="status">Toque para falar</div>
+        <button class="btn btn-talk" id="btnTalk" onclick="toggleListening()">Falar</button>
+    </div>
+
+    <div class="card">
+        <h2>O que voce disse</h2>
+        <div class="transcript" id="transcript">...</div>
+        <button class="btn btn-send" id="btnSend" onclick="sendToAI()" disabled>Enviar para IA</button>
     </div>
 
     <div class="card">
         <h2>Resposta da IA</h2>
-        <audio id="response-audio" controls></audio>
-        <div id="response-text" style="margin-top: 10px; font-size: 0.85rem; color: #aaa;"></div>
+        <div class="response" id="response">...</div>
+        <button class="btn btn-again" id="btnSpeak" onclick="speakResponse()" disabled>Ouvir resposta</button>
     </div>
 
     <div class="card examples">
-        <h2>Exemplos de comandos</h2>
+        <h2>Exemplos</h2>
         <p>Diga algo como:</p>
-        <code>Gastei 50 reais no mercado</code>
+        <code>Registre um gasto de 50 reais no mercado</code>
         <code>Paguei 30 reais na farmacia</code>
-        <code>Comprei gasolina por 200 reais</code>
         <code>Quanto gastei com alimentacao?</code>
+        <code>Me resuma todos os gastos</code>
     </div>
 
     <script>
-        let mediaRecorder;
-        let audioChunks = [];
-        let timerInterval;
-        let seconds = 0;
+        let recognition;
+        let isListening = false;
+        let finalTranscript = '';
 
-        function updateTimer() {
-            seconds++;
-            const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-            const s = String(seconds % 60).padStart(2, '0');
-            document.getElementById('timer').textContent = `${m}:${s}`;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            document.getElementById('status').textContent = 'Seu navegador nao suporta reconhecimento de voz';
+            document.getElementById('btnTalk').disabled = true;
+        } else {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                document.getElementById('transcript').textContent = finalTranscript + interim;
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                document.getElementById('btnTalk').classList.remove('recording');
+                document.getElementById('btnTalk').textContent = 'Falar';
+                if (finalTranscript.trim()) {
+                    document.getElementById('status').textContent = 'Pronto para enviar';
+                    document.getElementById('btnSend').disabled = false;
+                } else {
+                    document.getElementById('status').textContent = 'Nenhum texto detectado. Toque para tentar novamente.';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                isListening = false;
+                document.getElementById('btnTalk').classList.remove('recording');
+                document.getElementById('btnTalk').textContent = 'Falar';
+                document.getElementById('status').textContent = 'Erro: ' + event.error;
+            };
         }
 
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioChunks = [];
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.start();
-
-                document.getElementById('btnRecord').classList.add('recording');
-                document.getElementById('btnRecord').disabled = true;
-                document.getElementById('btnStop').disabled = false;
+        function toggleListening() {
+            if (isListening) {
+                recognition.stop();
+            } else {
+                finalTranscript = '';
+                document.getElementById('transcript').textContent = '...';
+                document.getElementById('response').textContent = '...';
                 document.getElementById('btnSend').disabled = true;
-                document.getElementById('status').textContent = 'Gravando...';
-                seconds = 0;
-                timerInterval = setInterval(updateTimer, 1000);
-            } catch (err) {
-                document.getElementById('status').textContent = 'Erro: Permite o microfone!';
+                document.getElementById('btnSpeak').disabled = true;
+                document.getElementById('status').textContent = 'Ouvindo... Toque para parar';
+                document.getElementById('btnTalk').classList.add('recording');
+                document.getElementById('btnTalk').textContent = 'Parar';
+                recognition.start();
+                isListening = true;
             }
         }
 
-        function stopRecording() {
-            mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(t => t.stop());
-            clearInterval(timerInterval);
-
-            document.getElementById('btnRecord').classList.remove('recording');
-            document.getElementById('btnRecord').disabled = false;
-            document.getElementById('btnStop').disabled = true;
-            document.getElementById('btnSend').disabled = false;
-            document.getElementById('status').textContent = `Gravado: ${seconds}s - Pronto para enviar`;
-        }
-
-        async function sendAudio() {
+        async function sendToAI() {
             document.getElementById('status').textContent = 'Enviando para IA...';
             document.getElementById('btnSend').disabled = true;
-
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
-            const formData = new FormData();
-            formData.append('file', blob, 'audio.webm');
 
             try {
                 const host = window.location.origin;
                 const res = await fetch(`${host}/transactions/ai`, {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: finalTranscript
                 });
 
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({ message: res.statusText }));
-                    document.getElementById('status').textContent = `Erro: ${err.message || res.statusText}`;
-                    document.getElementById('btnSend').disabled = false;
-                    return;
-                }
-
-                const audioBlob = await res.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-                const audioEl = document.getElementById('response-audio');
-                audioEl.src = audioUrl;
-
-                document.getElementById('status').textContent = 'Resposta recebida! Pressione play.';
+                const text = await res.text();
+                document.getElementById('response').textContent = text;
+                document.getElementById('status').textContent = 'Resposta recebida!';
+                document.getElementById('btnSpeak').disabled = false;
                 document.getElementById('btnSend').disabled = false;
-                audioEl.play();
             } catch (err) {
-                document.getElementById('status').textContent = `Erro de conexao: ${err.message}`;
+                document.getElementById('status').textContent = 'Erro: ' + err.message;
                 document.getElementById('btnSend').disabled = false;
             }
+        }
+
+        function speakResponse() {
+            const text = document.getElementById('response').textContent;
+            if (!text || text === '...') return;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1.1;
+            window.speechSynthesis.speak(utterance);
         }
     </script>
 </body>
