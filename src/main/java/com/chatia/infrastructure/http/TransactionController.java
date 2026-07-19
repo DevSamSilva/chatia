@@ -7,7 +7,6 @@ import com.chatia.domain.Category;
 import com.chatia.domain.TransactionId;
 import com.chatia.domain.TransactionRepository;
 import com.chatia.infrastructure.http.request.TransactionRequest;
-import com.chatia.infrastructure.http.response.ErrorResponse;
 import com.chatia.infrastructure.http.response.SummaryResponse;
 import com.chatia.infrastructure.http.response.TransactionResponse;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
