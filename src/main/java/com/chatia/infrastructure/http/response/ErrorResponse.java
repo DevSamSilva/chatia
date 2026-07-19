@@ -1,4 +1,4 @@
-package com.chatia.infrastructure.http;
+package com.chatia.infrastructure.http.response;
 
 import java.time.LocalDateTime;
 
