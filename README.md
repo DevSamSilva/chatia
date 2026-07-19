@@ -35,7 +35,7 @@ cd chatia
 ./mvnw spring-boot:run
 ```
 
-A aplicacao estara disponivel em `http://localhost:8080`
+A aplicacao estara disponivel em `http://localhost:8080` para fins de estudos
 
 ### Acessar pelo celular (via ngrok)
 
@@ -182,11 +182,8 @@ src/main/resources/
 - Tratamento padronizado de erros em APIs REST
 - Web Speech API para reconhecimento de voz e sintese de voz
 - Configuracao de Ollama como LLM local
+r/local/bin/ollama ~/.ollama
 
-## Desinstalar Ollama
-
-```bash
-sudo rm -rf /usr/local/bin/ollama ~/.ollama
 ```
 
 ## Baseado em
